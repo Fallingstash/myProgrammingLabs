@@ -18,7 +18,7 @@ using OxyPlot.Series;
 using OxyPlot;
 using Expression = NCalc.Expression;
 
-namespace myLAB {
+namespace MultiWindowApp {
   /// <summary>
   /// Логика взаимодействия для MainWindow.xaml
   /// </summary>

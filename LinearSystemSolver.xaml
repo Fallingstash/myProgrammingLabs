@@ -1,0 +1,156 @@
+﻿<Window x:Class="MultiWindowApp.LinearSystemSolver"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Решение СЛАУ" Height="700" Width="900"
+        WindowStartupLocation="CenterScreen"
+        Background="White">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Menu Grid.Row="0" Background="#FF0078D7" Padding="0">
+            <MenuItem Header="Файл" Foreground="White" FontWeight="SemiBold">
+                <MenuItem Header="Импорт из CSV"  Background="#FF0078D7" Click="ImportFromCsvButton_Click"/>
+                <MenuItem Header="Экспорт в CSV"  Background="#FF0078D7" Click="ExportToCsvButton_Click"/>
+                <Separator/>
+                <MenuItem Header="Выход"  Background="#FF0078D7" Click="ExitButton_Click"/>
+            </MenuItem>
+            <MenuItem Header="Решение" Foreground="White" FontWeight="SemiBold">
+                <MenuItem Header="Метод Гаусса" Background="#FF0078D7" Click="GaussMethodButton_Click"/>
+                <MenuItem Header="Метод Жордана-Гаусса"  Background="#FF0078D7" Click="JordanGaussMethodButton_Click"/>
+                <MenuItem Header="Метод Крамера"  Background="#FF0078D7" Click="CramerMethodButton_Click"/>
+            </MenuItem>
+            <MenuItem Header="Данные" Foreground="White" FontWeight="SemiBold">
+                <MenuItem Header="Создать матрицу" Background="#FF0078D7" Click="CreateMatrixButton_Click"/>
+                <MenuItem Header="Случайное заполнение"  Background="#FF0078D7" Click="RandomGenerationButton_Click"/>
+            </MenuItem>
+            <MenuItem Header="Справка" Foreground="White" FontWeight="SemiBold">
+                <MenuItem Header="О программе" Background="#FF0078D7" Click="AboutButton_Click"/>
+            </MenuItem>
+        </Menu>
+
+
+        <!-- Заголовок -->
+        <TextBlock Grid.Row="1" Text="Решение систем линейных уравнений" 
+                   FontSize="18" FontWeight="Bold" Margin="0,0,0,20" 
+                   HorizontalAlignment="Center" Foreground="#FF0078D7"/>
+
+        <!-- Панель управления -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10" HorizontalAlignment="Center">
+            <TextBlock Text="Размер матрицы:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+            <TextBox Name="SizeTextBox" Text="3" Width="50" VerticalAlignment="Center" Padding="5"/>
+            <Button Content="Создать матрицу" Click="CreateMatrixButton_Click" 
+                    Margin="15,0,5,0" Padding="10,5" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"/>
+            <Button Content="Случайное заполнение" Click="RandomGenerationButton_Click" 
+                    Margin="5,0,5,0" Padding="10,5" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"/>
+        </StackPanel>
+
+        <!-- Информация о времени -->
+        <TextBlock Grid.Row="3" Name="TimeInfoTextBlock" 
+                   HorizontalAlignment="Center" Margin="0,10" 
+                   FontSize="12" Foreground="DarkBlue" FontWeight="Bold" 
+                   Text="Здесь будет показано время решения..."/>
+
+        <!-- Основная область с матрицами -->
+        <Grid Grid.Row="4" Margin="0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Матрица A -->
+            <GroupBox Grid.Column="0" Header="Матрица A" FontWeight="Bold" 
+                      BorderBrush="#FF0078D7" BorderThickness="2" Margin="5">
+                <DataGrid x:Name="MatrixDataGrid" AutoGenerateColumns="True" 
+                          HeadersVisibility="Column" CanUserAddRows="False"
+                          GridLinesVisibility="All" AlternatingRowBackground="LightGray"
+                          AlternationCount="2" IsReadOnly="False"
+                          SelectionMode="Extended" SelectionUnit="Cell"/>
+            </GroupBox>
+
+            <!-- Стрелка между A и B -->
+            <TextBlock Grid.Column="1" Text="→" FontSize="24" FontWeight="Bold" 
+                       Foreground="#FF0078D7" VerticalAlignment="Center" Margin="10,0"/>
+
+            <!-- Вектор B -->
+            <GroupBox Grid.Column="2" Header="Вектор B" FontWeight="Bold" 
+                      BorderBrush="#FF0078D7" BorderThickness="2" Margin="5">
+                <DataGrid Name="VectorDataGrid" AutoGenerateColumns="True"
+                          HeadersVisibility="Column" CanUserAddRows="False"
+                          GridLinesVisibility="All" AlternatingRowBackground="LightGray"
+                          AlternationCount="2" IsReadOnly="False"
+                          SelectionMode="Extended" SelectionUnit="Cell"/>
+            </GroupBox>
+
+            <!-- Знак равенства -->
+            <TextBlock Grid.Column="3" Text="=" FontSize="24" FontWeight="Bold" 
+                       Foreground="#FF0078D7" VerticalAlignment="Center" Margin="10,0"/>
+
+            <!-- Результат X -->
+            <GroupBox Grid.Column="4" Header="Решение X" FontWeight="Bold" 
+                      BorderBrush="#FF0078D7" BorderThickness="2" Margin="5">
+                <DataGrid Name="ResultXDataGrid" AutoGenerateColumns="True"
+                          HeadersVisibility="Column" CanUserAddRows="False"
+                          GridLinesVisibility="All" AlternatingRowBackground="LightGray"
+                          AlternationCount="2" IsReadOnly="True"
+                          SelectionMode="Extended" SelectionUnit="Cell"/>
+            </GroupBox>
+        </Grid>
+
+        <!-- Прогресс-бар -->
+        <ProgressBar Name="ProgressBar" Grid.Row="5" Height="8" Margin="50,20,50,10" 
+                     Visibility="Collapsed" IsIndeterminate="True" 
+                     Background="LightGray" Foreground="#FF0078D7"/>
+
+        <!-- Кнопки методов решения -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,30">
+            <Button Name="ButtonGauss" Content="Метод Гаусса" Margin="10,5" Padding="15,8" 
+                    Click="GaussMethodButton_Click" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"
+                    FontSize="12" Cursor="Hand"/>
+            <Button Name="ButtonJordanGauss" Content="Метод Жордана-Гаусса" Margin="10,5" Padding="15,8" 
+                    Click="JordanGaussMethodButton_Click" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"
+                    FontSize="12" Cursor="Hand"/>
+            <Button Name="ButtonCramer" Content="Метод Крамера" Margin="10,5" Padding="15,8" 
+                    Click="CramerMethodButton_Click" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"
+                    FontSize="12" Cursor="Hand"/>
+        </StackPanel>
+
+
+        <!-- Нижняя панель с кнопками файловых операций и назад -->
+        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10">
+            <Button Content="Импорт из CSV" Click="ImportFromCsvButton_Click" 
+                    Margin="5,0" Padding="10,5" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"
+                    FontSize="11" Cursor="Hand"/>
+            <Button Content="Экспорт в CSV" Click="ExportToCsvButton_Click" 
+                    Margin="5,0" Padding="10,5" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"
+                    FontSize="11" Cursor="Hand"/>
+            <Button Content="Выход" Click="ExitButton_Click" 
+                    Margin="5,0" Padding="10,5" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"
+                    FontSize="11" Cursor="Hand"/>
+            <Button Content="Назад" Click="BackButton_Click" 
+                    Margin="20,0,5,0" Padding="10,5" Background="#FF0078D7" 
+                    Foreground="White" FontWeight="SemiBold" BorderThickness="0"
+                    FontSize="11" Cursor="Hand"/>
+        </StackPanel>
+    </Grid>
+</Window>
