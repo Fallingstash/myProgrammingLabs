@@ -60,6 +60,15 @@ namespace MultiWindowApp {
           return;
         }
 
+        if (epsilon >= 1) {
+          MessageBox.Show("Точность слишком низкая! Рекомендуется ε < 1", "Предупреждение", MessageBoxButton.OK, MessageBoxImage.Warning);
+          // Можно либо запретить, либо разрешить с предупреждением
+        }
+
+        if (epsilon < 1e-10) {
+          MessageBox.Show("Точность слишком высокая! Это может привести к ошибкам вычислений.", "Предупреждение", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
         if (!IsFunctionValid(functionText, a)) {
           MessageBox.Show("Функция содержит ошибки!", "Ошибка в функции", MessageBoxButton.OK, MessageBoxImage.Error);
           return;
@@ -76,10 +85,20 @@ namespace MultiWindowApp {
         else {
           // Фильтруем и округляем корни
           var displayRoots = roots
-              .Select(r => Math.Abs(r) < epsilon ? 0 : Math.Round(r, 8))
-              .Distinct()
-              .OrderBy(r => r)
-              .ToList();
+      .Where(r => {
+        try {
+          double fr = CalculateFunction(r, functionText);
+          return Math.Abs(fr) < Math.Max(epsilon, 1e-6); // Проверяем, что значение функции близко к 0
+        }
+        catch {
+          return false; // Отбрасываем точки, где функция не определена
+        }
+      })
+      .Select(r => Math.Abs(r) < 1e-10 ? 0 : Math.Round(r, 8)) // Используем маленькое значение для округления к 0
+      .Where(r => !double.IsInfinity(r) && !double.IsNaN(r)) // Убираем бесконечности и NaN
+      .Distinct()
+      .OrderBy(r => r)
+      .ToList();
 
           ResultTextBlock.Text = $"✓ Найдено корней: {displayRoots.Count}\n\n";
 
@@ -203,13 +222,24 @@ namespace MultiWindowApp {
       double step = (b - a) / divisions;
 
       // Сначала проверяем особо важные точки
-      double[] specialPoints = { a, b, 0, (a + b) / 2 };
+      var specialPoints = new List<double> { a, b, (a + b) / 2 };
+
+      if (0 >= a && 0 <= b) {
+        specialPoints.Add(0);
+      }
+
       foreach (double x in specialPoints) {
         if (x >= a && x <= b) {
-          double fx = CalculateFunction(x, functionText);
-          if (Math.Abs(fx) < epsilon) {
-            if (!IsRootAlreadyFound(roots, x, epsilon * 100))
-              roots.Add(x);
+          try {
+            double fx = CalculateFunction(x, functionText);
+            if (Math.Abs(fx) == 0) {
+              if (!IsRootAlreadyFound(roots, x, epsilon * 100))
+                roots.Add(x);
+            }
+          }
+          catch {
+            // Пропускаем точки, где функция не определена
+            continue;
           }
         }
       }
@@ -219,17 +249,41 @@ namespace MultiWindowApp {
         double x1 = a + i * step;
         double x2 = x1 + step;
 
-        double f1 = CalculateFunction(x1, functionText);
-        double f2 = CalculateFunction(x2, functionText);
+        double f1 = 0, f2 = 0;
+        bool f1Valid = false, f2Valid = false;
 
-        // Только если есть настоящая смена знака
-        if (f1 * f2 < 0 && !double.IsNaN(f1) && !double.IsNaN(f2)) {
+        // Пробуем вычислить f(x1)
+        try {
+          f1 = CalculateFunction(x1, functionText);
+          f1Valid = true;
+        }
+        catch {
+          f1Valid = false;
+        }
+
+        // Пробуем вычислить f(x2)
+        try {
+          f2 = CalculateFunction(x2, functionText);
+          f2Valid = true;
+        }
+        catch {
+          f2Valid = false;
+        }
+
+        if (f1Valid && f2Valid && Math.Abs(f1) < 1e10 && Math.Abs(f2) < 1e10 && f1 * f2 < 0) {
           try {
             double root = DichotomyMethodFunc(x1, x2, epsilon, functionText);
-            if (!IsRootAlreadyFound(roots, root, epsilon * 100))
-              roots.Add(root);
+
+            // Проверяем, что найденное значение действительно близко к нулю
+            double fRoot = CalculateFunction(root, functionText);
+            if (Math.Abs(fRoot) < Math.Max(epsilon, 1e-6)) {
+              if (!IsRootAlreadyFound(roots, root, epsilon * 10))
+                roots.Add(root);
+            }
           }
-          catch {          }
+          catch {
+            // Пропускаем интервалы, где метод дихотомии не срабатывает
+          }
         }
       }
 
@@ -245,24 +299,40 @@ namespace MultiWindowApp {
     }
 
     private double DichotomyMethodFunc(double a, double b, double epsilon, string functionText) {
-      double fa = CalculateFunction(a, functionText);
-      double fb = CalculateFunction(b, functionText);
+      double fa = 0;
+      double fb = 0;
+
+      try {
+        fa = CalculateFunction(a, functionText);
+        fb = CalculateFunction(b, functionText);
+      }
+      catch (Exception ex) {
+        throw new ArgumentException($"Функция не определена на границах интервала: {ex.Message}");
+      }
 
       // Если на границах уже ноль - возвращаем их
-      if (Math.Abs(fa) < epsilon) return a;
-      if (Math.Abs(fb) < epsilon) return b;
+      if (Math.Abs(fa) == 0) return a;
+      if (Math.Abs(fb) == 0) return b;
 
-      // Только если есть смена знака
-      if (fa * fb >= 0)
-        throw new ArgumentException("Нет смены знака");
+
+      if (fa * fb >= 0) {
+        throw new ArgumentException($"Нет смены знака на интервале. f(a)={fa}, f(b)={fb}");
+      }
 
       int iterations = 0;
-      while (b - a > epsilon && iterations < 100) {
+      while (b - a > epsilon && iterations < 1000) {
         iterations++;
         double c = (a + b) / 2;
         double fc = CalculateFunction(c, functionText);
 
-        if (Math.Abs(fc) < epsilon) return c;
+        try {
+          fc = CalculateFunction(c, functionText);
+        }
+        catch (Exception ex) {
+          throw new ArgumentException($"Функция не определена в точке x={c}: {ex.Message}");
+        }
+
+        if (Math.Abs(fc) == 0) return c;
 
         if (fa * fc < 0) {
           b = c;
@@ -274,7 +344,17 @@ namespace MultiWindowApp {
         }
       }
 
-      return (a + b) / 2;
+      double root = (a + b) / 2;
+      try {
+        double fRoot = CalculateFunction(root, functionText);
+        if (double.IsInfinity(fRoot) || double.IsNaN(fRoot) || Math.Abs(fRoot) > 1e10) {
+          throw new ArgumentException("Найденная точка не является корнем");
+        }
+        return root;
+      }
+      catch {
+        throw new ArgumentException("Функция не определена в найденной точке");
+      }
     }
 
     private double ParseDouble(string text) {
@@ -312,8 +392,19 @@ namespace MultiWindowApp {
         };
 
         object result = expression.Evaluate();
+
+        // Проверяем на особые значения
+        if (double.IsInfinity(Convert.ToDouble(result)) || double.IsNaN(Convert.ToDouble(result))) {
+          throw new ArgumentException("Функция не определена в этой точке");
+        }
+
         return Convert.ToDouble(result);
       }
+
+      catch (DivideByZeroException) {
+        throw new ArgumentException("Деление на ноль");
+      }
+
       catch (Exception ex) {
         throw new ArgumentException($"Ошибка в функции: {ex.Message}");
       }

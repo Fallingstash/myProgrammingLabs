@@ -26,7 +26,7 @@ namespace MultiWindowApp {
           new LinearSystemSolver().Show();
           break;
         case "3":
-          MessageBox.Show("Задание 3 в разработке");
+          new GoldenSectionMethod().Show();
           break;
         case "4":
           MessageBox.Show("Задание 4 в разработке");
