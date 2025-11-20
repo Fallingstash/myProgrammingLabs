@@ -29,10 +29,10 @@ namespace MultiWindowApp {
           new GoldenSectionMethod().Show();
           break;
         case "4":
-          MessageBox.Show("Задание 4 в разработке");
+          new NewtonMethod().Show();
           break;
         case "5":
-          MessageBox.Show("Задание 5 в разработке");
+          new SortingAlgorithms().Show();
           break;
         case "6":
           MessageBox.Show("Задание 6 в разработке");

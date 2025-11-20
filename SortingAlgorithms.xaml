@@ -1,0 +1,159 @@
+﻿<Window x:Class="MultiWindowApp.SortingAlgorithms"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Алгоритмы сортировки - Лабораторная работа №4" 
+        Height="800" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        Background="White">
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Меню -->
+        <Menu Grid.Row="0" Background="#FF0078D7" Padding="0">
+            <MenuItem Header="Файл" Foreground="White" FontWeight="SemiBold">
+                <MenuItem Header="Импорт из Excel" Background="#FF0078D7" Click="ImportFromExcelMenuItem_Click"/>
+                <MenuItem Header="Импорт из Google Table" Background="#FF0078D7" Click="ImportFromGoogleSheetsMenuItem_Click"/>
+                <Separator/>
+                <MenuItem Header="Очистить" Background="#FF0078D7" Click="ClearDataMenuItem_Click"/>
+                <MenuItem Header="Выход" Background="#FF0078D7" Click="ExitMenuItem_Click"/>
+            </MenuItem>
+            <MenuItem Header="Данные" Foreground="White" FontWeight="SemiBold">
+                <MenuItem Header="Сгенерировать случайные данные" Background="#FF0078D7" Click="GenerateRandomDataMenuItem_Click"/>
+            </MenuItem>
+            <MenuItem Header="Справка" Foreground="White" FontWeight="SemiBold">
+                <MenuItem Header="О программе" Background="#FF0078D7"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- Заголовок -->
+        <TextBlock Grid.Row="1" Text="Сравнение алгоритмов сортировки" 
+                   FontSize="18" FontWeight="Bold" Margin="0,15,0,10" 
+                   HorizontalAlignment="Center" Foreground="#FF0078D7"/>
+
+        <!-- Блок 1: Размер массива и выбор сортировок -->
+        <GroupBox Grid.Row="2" Header="Настройки сортировки" FontWeight="SemiBold" 
+                  BorderBrush="#FF0078D7" BorderThickness="1" Margin="0,5">
+            <StackPanel Orientation="Horizontal" Margin="10">
+                <!-- Размер массива -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Размер массива:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBox Name="ArraySizeTextBox" Text="10" Width="40" Padding="3" VerticalAlignment="Center"/>
+                    <Button Content="Обновить" Click="UpdateArraySizeButton_Click" Margin="5,0,0,0" 
+            Padding="5,2" Background="#FF0078D7" Foreground="White"/>
+                </StackPanel>
+
+
+
+                <!-- Выбор алгоритмов -->
+                <StackPanel Orientation="Horizontal" Margin="20,0,0,0">
+                    <CheckBox Name="BubbleSortCheckBox" Content="Пузырьковая" Margin="5,0" VerticalAlignment="Center"/>
+                    <CheckBox Name="InsertionSortCheckBox" Content="Вставками" Margin="5,0" VerticalAlignment="Center"/>
+                    <CheckBox Name="ShakerSortCheckBox" Content="Шейкерная" Margin="5,0" VerticalAlignment="Center"/>
+                    <CheckBox Name="QuickSortCheckBox" Content="Быстрая" Margin="5,0" VerticalAlignment="Center"/>
+                    <CheckBox Name="BogoSortCheckBox" Content="BOGO" Margin="5,0" VerticalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- Блок 2: Направление сортировки и кнопка -->
+        <GroupBox Grid.Row="3" Header="Параметры выполнения" FontWeight="SemiBold" 
+                  BorderBrush="#FF0078D7" BorderThickness="1" Margin="0,5">
+            <StackPanel Orientation="Horizontal" Margin="10">
+                <!-- Направление сортировки -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Направление:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <RadioButton Name="AscendingRadio" Content="По возрастанию" GroupName="SortOrder" 
+                               IsChecked="True" Margin="5,0"/>
+                    <RadioButton Name="DescendingRadio" Content="По убыванию" GroupName="SortOrder" 
+                               Margin="5,0"/>
+                </StackPanel>
+
+                <!-- Кнопка запуска -->
+                <Button Content="Запустить сортировку" Margin="30,0,0,0" Padding="15,5" 
+                        Background="#FF0078D7" Foreground="White" FontWeight="SemiBold"
+                        VerticalAlignment="Center" Click="StartSortingButton_Click"/>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- Область данных -->
+        <GroupBox Grid.Row="4" Header="Данные и визуализация" FontWeight="SemiBold" 
+                  BorderBrush="#FF0078D7" BorderThickness="1" Margin="0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="300"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Исходные данные -->
+                <StackPanel Grid.Column="0" Margin="5">
+                    <TextBlock Text="Исходный массив:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <DataGrid Name="InputDataGrid" AutoGenerateColumns="True" 
+                             Height="371" CanUserAddRows="True"
+                             GridLinesVisibility="All" 
+                             AlternatingRowBackground="LightGray"/>
+                </StackPanel>
+
+                <!-- Визуализация -->
+                <StackPanel Grid.Column="1" Margin="5">
+                    <TextBlock Text="Визуализация процессов:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="300">
+                        <StackPanel Name="VisualizationPanel">
+                            <Border Margin="0,2" Padding="5" BorderBrush="Gray" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Пузырьковая сортировка" FontWeight="Bold" Margin="0,0,0,2"/>
+                                    <Canvas Name="BubbleSortCanvas" Height="80" Background="White"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,2" Padding="5" BorderBrush="Gray" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Быстрая сортировка" FontWeight="Bold" Margin="0,0,0,2"/>
+                                    <Canvas Name="QuickSortCanvas" Height="80" Background="White"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,2" Padding="5" BorderBrush="Gray" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Сортировка вставками" FontWeight="Bold" Margin="0,0,0,2"/>
+                                    <Canvas Name="InsertSortCanvas" Height="80" Background="White"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,2" Padding="5" BorderBrush="Gray" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="Шейкерная сортировка" FontWeight="Bold" Margin="0,0,0,2"/>
+                                    <Canvas Name="ShakerSortCanvas" Height="80" Background="White"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,2" Padding="5" BorderBrush="Gray" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="BOGO сортировка" FontWeight="Bold" Margin="0,0,0,2"/>
+                                    <Canvas Name="BogoSortCanvas" Height="80" Background="White"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </StackPanel>
+            </Grid>
+        </GroupBox>
+
+        <!-- Время выполнения -->
+        <Border Grid.Row="5" BorderBrush="#FF0078D7" BorderThickness="1" Margin="0,10" Padding="10">
+            <StackPanel>
+                <TextBlock Text="Время выполнения алгоритмов:" FontWeight="Bold" Margin="0,0,0,5"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <TextBlock Name="BubbleSortTime" Text="Пузырьковая: - " Margin="10,2"/>
+                    <TextBlock Name="InsertionSortTime" Text="Вставками: - " Margin="10,2"/>
+                    <TextBlock Name="ShakerSortTime" Text="Шейкерная: - " Margin="10,2"/>
+                    <TextBlock Name="QuickSortTime" Text="Быстрая: - " Margin="10,2"/>
+                    <TextBlock Name="BogoSortTime" Text="BOGO: - " Margin="10,2"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
