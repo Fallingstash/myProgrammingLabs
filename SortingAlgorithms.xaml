@@ -28,6 +28,10 @@
             <MenuItem Header="Данные" Foreground="White" FontWeight="SemiBold">
                 <MenuItem Header="Сгенерировать случайные данные" Background="#FF0078D7" Click="GenerateRandomDataMenuItem_Click"/>
             </MenuItem>
+            <MenuItem Header="Настройки" Foreground="White" FontWeight="SemiBold">
+                <MenuItem Header="Настройка BOGO сортировки" Background="#FF0078D7" 
+              Click="ConfigureBogoMenuItem_Click"/>
+            </MenuItem>
             <MenuItem Header="Справка" Foreground="White" FontWeight="SemiBold">
                 <MenuItem Header="О программе" Background="#FF0078D7"/>
             </MenuItem>
@@ -95,10 +99,10 @@
                 <!-- Исходные данные -->
                 <StackPanel Grid.Column="0" Margin="5">
                     <TextBlock Text="Исходный массив:" FontWeight="SemiBold" Margin="0,0,0,5"/>
-                    <DataGrid Name="InputDataGrid" AutoGenerateColumns="True" 
-                             Height="371" CanUserAddRows="True"
-                             GridLinesVisibility="All" 
-                             AlternatingRowBackground="LightGray"/>
+                    <DataGrid Name="InputDataGrid" AutoGenerateColumns="False" 
+             Height="371" CanUserAddRows="True"
+             GridLinesVisibility="All" 
+             AlternatingRowBackground="LightGray"/>
                 </StackPanel>
 
                 <!-- Визуализация -->
@@ -152,6 +156,16 @@
                     <TextBlock Name="ShakerSortTime" Text="Шейкерная: - " Margin="10,2"/>
                     <TextBlock Name="QuickSortTime" Text="Быстрая: - " Margin="10,2"/>
                     <TextBlock Name="BogoSortTime" Text="BOGO: - " Margin="10,2"/>
+                </StackPanel>
+
+                <!-- Блок для итераций -->
+                <TextBlock Text="Количество итераций:" FontWeight="Bold" Margin="0,10,0,5"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <TextBlock Name="BubbleSortIterations" Text="Пузырьковая: 0 " Margin="10,2"/>
+                    <TextBlock Name="InsertionSortIterations" Text="Вставками: 0 " Margin="10,2"/>
+                    <TextBlock Name="ShakerSortIterations" Text="Шейкерная: 0 " Margin="10,2"/>
+                    <TextBlock Name="QuickSortIterations" Text="Быстрая: 0 " Margin="10,2"/>
+                    <TextBlock Name="BogoSortIterations" Text="BOGO: 0 " Margin="10,2"/>
                 </StackPanel>
             </StackPanel>
         </Border>

@@ -9,6 +9,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -17,9 +18,18 @@ namespace MultiWindowApp {
     private ObservableCollection<NumberItem> dataCollection;
     private Stopwatch stopwatch = new Stopwatch();
 
+    // Ограничение BogoSort (по умолчанию 100000, но можно менять)
+    private int maxBogoIterations = 100000;
+
     public SortingAlgorithms() {
       InitializeComponent();
       InitializeDataGrid();
+    }
+
+    // Класс для хранения чисел с индексом
+    public class NumberItem {
+      public int Index { get; set; }
+      public double Value { get; set; }
     }
 
     private void InitializeDataGrid() {
@@ -28,138 +38,95 @@ namespace MultiWindowApp {
 
       Random random = new Random();
       for (int i = 0; i < size; i++) {
-        dataCollection.Add(new NumberItem { Value = random.Next(1, 100) });
+        dataCollection.Add(new NumberItem {
+          Index = i + 1,
+          Value = random.Next(1, 100)
+        });
       }
 
       InputDataGrid.ItemsSource = dataCollection;
+
+      // Настраиваем колонки вручную
+      InputDataGrid.Columns.Clear();
+
+      // Колонка индекса
+      var indexColumn = new DataGridTextColumn {
+        Header = "№",
+        Binding = new Binding("Index"),
+        Width = 50,
+        IsReadOnly = true
+      };
+      InputDataGrid.Columns.Add(indexColumn);
+
+      // Колонка значения
+      var valueColumn = new DataGridTextColumn {
+        Header = "Значение",
+        Binding = new Binding("Value") { StringFormat = "F2" },
+        Width = new DataGridLength(1, DataGridLengthUnitType.Star)
+      };
+      InputDataGrid.Columns.Add(valueColumn);
     }
 
     // Получаем массив из DataGrid
-    private int[] GetArrayFromDataGrid() {
+    private double[] GetArrayFromDataGrid() {
       return dataCollection.Select(item => item.Value).ToArray();
     }
 
     // Обновляем DataGrid из массива
-    private void UpdateDataGridFromArray(int[] array) {
+    private void UpdateDataGridFromArray(double[] array) {
       for (int i = 0; i < array.Length && i < dataCollection.Count; i++) {
         dataCollection[i].Value = array[i];
       }
+      InputDataGrid.Items.Refresh();
     }
 
-    public class NumberItem {
-      public int Value { get; set; }
+    // Класс для хранения результатов сортировки
+    public class SortResult {
+      public double[] SortedArray { get; set; }
+      public int Iterations { get; set; }
+      public TimeSpan Time { get; set; }
     }
 
-    private async Task ExecuteSortAsync(Func<int[], bool, int[]> sortMethod, string methodName, bool isAscending) {
-      // Каждая сортировка получает СВОЮ копию исходных данных и СВОЙ таймер
-      int[] localArr = GetArrayFromDataGrid();
-      var localStopwatch = new Stopwatch(); // ✅ ОТДЕЛЬНЫЙ таймер для каждого алгоритма
+    // Диалог для настройки BogoSort
+    private void ShowBogoSettingsDialog() {
+      var dialog = new BogoSettingsDialog(maxBogoIterations);
+      if (dialog.ShowDialog() == true) {
+        maxBogoIterations = dialog.MaxIterations;
+      }
+    }
+
+    private void ConfigureBogoMenuItem_Click(object sender, RoutedEventArgs e) {
+      ShowBogoSettingsDialog();
+    }
+
+    private async Task<SortResult> ExecuteSortAsync(Func<double[], bool, SortResult> sortMethod, string methodName, bool isAscending) {
+      double[] localArr = GetArrayFromDataGrid();
+      var localStopwatch = new Stopwatch();
 
       localStopwatch.Restart();
-      int[] result = await Task.Run(() => sortMethod(localArr, isAscending));
+      var result = await Task.Run(() => sortMethod(localArr, isAscending));
       localStopwatch.Stop();
 
-      // Обновляем ТОЛЬКО визуализацию, НЕ DataGrid
-      UpdateTimeDisplay(methodName, localStopwatch.Elapsed);
-      UpdateVisualization(result, methodName, localStopwatch.Elapsed);
-    }
+      result.Time = localStopwatch.Elapsed;
 
-    private void UpdateVisualization(int[] result, string methodName, TimeSpan time) {
+      // Обновляем отображение
       Dispatcher.Invoke(() =>
       {
-        Canvas targetCanvas = methodName switch {
-          "BubbleSort" => BubbleSortCanvas,
-          "QuickSort" => QuickSortCanvas,
-          "InsertSort" => InsertSortCanvas,
-          "ShakerSort" => ShakerSortCanvas,
-          "BogoSort" => BogoSortCanvas,
-          _ => null
-        };
-
-        if (targetCanvas != null) {
-          DrawArrayOnCanvas(result, targetCanvas);
-
-          // Добавляем подпись с временем прямо на Canvas
-          var timeText = new TextBlock {
-            Text = $"{time.TotalMilliseconds:F2} мс",
-            Foreground = Brushes.Red,
-            FontWeight = FontWeights.Bold,
-            FontSize = 10,
-            Background = Brushes.White
-          };
-          Canvas.SetTop(timeText, 2);
-          Canvas.SetLeft(timeText, 2);
-          targetCanvas.Children.Add(timeText);
-        }
+        UpdateTimeDisplay(methodName, result.Time);
+        UpdateIterationsDisplay(methodName, result.Iterations);
+        UpdateVisualization(result.SortedArray, methodName, result.Time, result.Iterations);
       });
+
+      return result;
     }
 
-    // Обработчик для кнопки обновления размера массива
-    private void UpdateArraySizeButton_Click(object sender, RoutedEventArgs e) {
-      try {
-        InitializeDataGrid();
-      }
-      catch (Exception ex) {
-        MessageBox.Show($"Ошибка при обновлении размера: {ex.Message}");
-      }
-    }
+    // Методы сортировки теперь возвращают SortResult
+    public SortResult BubbleSort(double[] arr, bool isAscending) {
+      int iterations = 0;
 
-    // Остальные методы остаются без изменений...
-    private void UpdateTimeDisplay(string methodName, TimeSpan time) {
-      Dispatcher.Invoke(() =>
-      {
-        switch (methodName) {
-          case "BubbleSort":
-            BubbleSortTime.Text = $"Пузырьковая: {time.TotalMilliseconds:F2} мс";
-            break;
-          case "QuickSort":
-            QuickSortTime.Text = $"Быстрая: {time.TotalMilliseconds:F2} мс";
-            break;
-          case "InsertSort":
-            InsertionSortTime.Text = $"Вставкой: {time.TotalMilliseconds:F2} мс";
-            break;
-          case "BogoSort":
-            BogoSortTime.Text = $"Болотной: {time.TotalMilliseconds:F2} мс";
-            break;
-          case "ShakerSort":
-            ShakerSortTime.Text = $"Шейком: {time.TotalMilliseconds:F2} мс";
-            break;
-        }
-      });
-    }
-
-    private void UpdateVisualization(int[] result, string methodName) {
-      Dispatcher.Invoke(() =>
-      {
-        Canvas targetCanvas = methodName switch {
-          "BubbleSort" => BubbleSortCanvas,
-          "QuickSort" => QuickSortCanvas,
-          "InsertSort" => InsertSortCanvas,
-          "ShakerSort" => ShakerSortCanvas,
-          "BogoSort" => BogoSortCanvas,
-          _ => null
-        };
-
-        if (targetCanvas != null) {
-          DrawArrayOnCanvas(result, targetCanvas);
-
-          // Добавляем подпись с временем прямо на Canvas
-          var timeText = new TextBlock {
-            Text = $"{stopwatch.Elapsed.TotalMilliseconds:F2} мс",
-            Foreground = Brushes.Red,
-            FontWeight = FontWeights.Bold,
-            FontSize = 10
-          };
-          Canvas.SetTop(timeText, 5);
-          Canvas.SetLeft(timeText, 5);
-          targetCanvas.Children.Add(timeText);
-        }
-      });
-    }
-
-    public int[] BubbleSort(int[] arr, bool isAscending) {
       for (int countOfIteration = 0; countOfIteration < arr.Length; ++countOfIteration) {
         for (int numberOfElement = 0; numberOfElement < arr.Length - 1; ++numberOfElement) {
+          iterations++;
           if (isAscending) {
             if (arr[numberOfElement] > arr[numberOfElement + 1]) {
               var bufer = arr[numberOfElement];
@@ -175,53 +142,30 @@ namespace MultiWindowApp {
           }
         }
       }
-      return arr; // ✅ ДОБАВЛЕНО возвращение массива
+      return new SortResult { SortedArray = arr, Iterations = iterations };
     }
 
-    public int[] OptimizedBubbleSort(int[] arr, bool isAscending) {
-      for (int countOfIteration = 0; countOfIteration < arr.Length; ++countOfIteration) {
-        bool swapped = false;
-        for (int numberOfElement = 0; numberOfElement < arr.Length - 1 - countOfIteration; ++numberOfElement) {
-          if (isAscending) {
-            if (arr[numberOfElement] > arr[numberOfElement + 1]) {
-              swapped = true;
-              var bufer = arr[numberOfElement];
-              arr[numberOfElement] = arr[numberOfElement + 1];
-              arr[numberOfElement + 1] = bufer;
-            }
-          } else {
-            if (arr[numberOfElement] < arr[numberOfElement + 1]) {
-              swapped = true;
-              var bufer = arr[numberOfElement];
-              arr[numberOfElement] = arr[numberOfElement + 1];
-              arr[numberOfElement + 1] = bufer;
-            }
-          }
-        }
+    public SortResult InsertSort(double[] arr, bool isAscending) {
+      int iterations = 0;
 
-        if (!swapped) {
-          break;
-        }
-      }
-      return arr; // ✅ ДОБАВЛЕНО возвращение массива
-    }
-
-    public int[] InsertSort(int[] arr, bool isAscending) {
       for (int countOfIteration = 1; countOfIteration < arr.Length; ++countOfIteration) {
+        iterations++;
         var key = arr[countOfIteration];
         int countOfElements = countOfIteration - 1;
 
         while (countOfElements >= 0 && ((arr[countOfElements] > key && isAscending) || (!isAscending && arr[countOfElements] < key))) {
+          iterations++;
           arr[countOfElements + 1] = arr[countOfElements];
           --countOfElements;
         }
 
         arr[countOfElements + 1] = key;
       }
-      return arr; // ✅ ДОБАВЛЕНО возвращение массива
+      return new SortResult { SortedArray = arr, Iterations = iterations };
     }
 
-    public int[] ShakerSort(int[] arr, bool isAscending) {
+    public SortResult ShakerSort(double[] arr, bool isAscending) {
+      int iterations = 0;
       int left = 0, right = arr.Length - 1;
       bool swapped = false;
 
@@ -229,6 +173,7 @@ namespace MultiWindowApp {
         swapped = false;
 
         for (int goRight = left; goRight < right; ++goRight) {
+          iterations++;
           if (isAscending) {
             if (arr[goRight] > arr[goRight + 1]) {
               swapped = true;
@@ -249,6 +194,7 @@ namespace MultiWindowApp {
         --right;
 
         for (int goLeft = right; goLeft > left; --goLeft) {
+          iterations++;
           if (isAscending) {
             if (arr[goLeft] < arr[goLeft - 1]) {
               swapped = true;
@@ -272,27 +218,32 @@ namespace MultiWindowApp {
           break;
         }
       }
-      return arr; // ✅ ДОБАВЛЕНО возвращение массива
+      return new SortResult { SortedArray = arr, Iterations = iterations };
     }
 
-    public int[] QuickSort(int[] arr, bool isAscending) {
+    private int quickSortIterations = 0;
+
+    public SortResult QuickSort(double[] arr, bool isAscending) {
+      quickSortIterations = 0;
       QuickSortRecursive(arr, 0, arr.Length - 1, isAscending);
-      return arr; // ✅ ДОБАВЛЕНО возвращение массива
+      return new SortResult { SortedArray = arr, Iterations = quickSortIterations };
     }
 
-    private void QuickSortRecursive(int[] arr, int left, int right, bool isAscending) {
+    private void QuickSortRecursive(double[] arr, int left, int right, bool isAscending) {
       if (left < right) {
+        quickSortIterations++;
         int pivotIndex = Partition(arr, left, right, isAscending);
         QuickSortRecursive(arr, left, pivotIndex - 1, isAscending);
         QuickSortRecursive(arr, pivotIndex + 1, right, isAscending);
       }
     }
 
-    private int Partition(int[] arr, int left, int right, bool isAscending) {
-      int pivot = arr[right];
+    private int Partition(double[] arr, int left, int right, bool isAscending) {
+      double pivot = arr[right];
       int pivotIndex = left - 1;
 
       for (int numberOfElement = left; numberOfElement < right; numberOfElement++) {
+        quickSortIterations++;
         if (isAscending) {
           if (arr[numberOfElement] <= pivot) {
             ++pivotIndex;
@@ -317,10 +268,17 @@ namespace MultiWindowApp {
       return pivotIndex + 1;
     }
 
-    public int[] BogoSort(int[] arr, bool isAscending = false) {
+    public SortResult BogoSort(double[] arr, bool isAscending) {
+      int iterations = 0;
       Random random = new Random();
-      while (true) {
+
+      // Показываем диалог настроек перед запуском BogoSort
+      Dispatcher.Invoke(() => ShowBogoSettingsDialog());
+
+      while (iterations < maxBogoIterations) {
+        iterations++;
         bool isSorted = true;
+
         for (int numberOfElement = 0; numberOfElement < arr.Length - 1; numberOfElement++) {
           if (isAscending && arr[numberOfElement] > arr[numberOfElement + 1]) {
             isSorted = false;
@@ -331,10 +289,12 @@ namespace MultiWindowApp {
             break;
           }
         }
+
         if (isSorted) {
           break;
         }
 
+        // Перемешиваем массив
         for (int numberOfElement = 0; numberOfElement < arr.Length; ++numberOfElement) {
           int randomIndex = random.Next(0, arr.Length);
           var bufer = arr[randomIndex];
@@ -342,46 +302,116 @@ namespace MultiWindowApp {
           arr[numberOfElement] = bufer;
         }
       }
-      return arr; // ✅ ДОБАВЛЕНО возвращение массива
+
+      // Если достигнут лимит итераций
+      if (iterations >= maxBogoIterations) {
+        MessageBox.Show($"BogoSort достиг максимального количества итераций ({maxBogoIterations}). Массив может быть не отсортирован.");
+      }
+
+      return new SortResult { SortedArray = arr, Iterations = iterations };
     }
 
-    private void DrawArrayOnCanvas(int[] array, Canvas canvas) {
+    private void UpdateTimeDisplay(string methodName, TimeSpan time) {
+      switch (methodName) {
+        case "BubbleSort":
+          BubbleSortTime.Text = $"Пузырьковая: {time.TotalMilliseconds:F2} мс";
+          break;
+        case "QuickSort":
+          QuickSortTime.Text = $"Быстрая: {time.TotalMilliseconds:F2} мс";
+          break;
+        case "InsertSort":
+          InsertionSortTime.Text = $"Вставкой: {time.TotalMilliseconds:F2} мс";
+          break;
+        case "BogoSort":
+          BogoSortTime.Text = $"BOGO: {time.TotalMilliseconds:F2} мс";
+          break;
+        case "ShakerSort":
+          ShakerSortTime.Text = $"Шейкерная: {time.TotalMilliseconds:F2} мс";
+          break;
+      }
+    }
+
+    private void UpdateIterationsDisplay(string methodName, int iterations) {
+      switch (methodName) {
+        case "BubbleSort":
+          BubbleSortIterations.Text = $"Пузырьковая: {iterations}";
+          break;
+        case "QuickSort":
+          QuickSortIterations.Text = $"Быстрая: {iterations}";
+          break;
+        case "InsertSort":
+          InsertionSortIterations.Text = $"Вставками: {iterations}";
+          break;
+        case "BogoSort":
+          BogoSortIterations.Text = $"BOGO: {iterations}";
+          break;
+        case "ShakerSort":
+          ShakerSortIterations.Text = $"Шейкерная: {iterations}";
+          break;
+      }
+    }
+
+    private void UpdateVisualization(double[] result, string methodName, TimeSpan time, int iterations) {
+      Canvas targetCanvas = methodName switch {
+        "BubbleSort" => BubbleSortCanvas,
+        "QuickSort" => QuickSortCanvas,
+        "InsertSort" => InsertSortCanvas,
+        "ShakerSort" => ShakerSortCanvas,
+        "BogoSort" => BogoSortCanvas,
+        _ => null
+      };
+
+      if (targetCanvas != null) {
+        DrawArrayOnCanvas(result, targetCanvas);
+
+        // Добавляем подпись с временем и итерациями
+        var infoText = new TextBlock {
+          Text = $"{time.TotalMilliseconds:F2} мс\n{iterations} итераций",
+          Foreground = Brushes.Red,
+          FontWeight = FontWeights.Bold,
+          FontSize = 10,
+          Background = Brushes.White
+        };
+        Canvas.SetTop(infoText, 2);
+        Canvas.SetLeft(infoText, 2);
+        targetCanvas.Children.Add(infoText);
+      }
+    }
+
+    private void DrawArrayOnCanvas(double[] array, Canvas canvas) {
       if (canvas == null)
         return;
 
-      // Ждем обновления layout
-      canvas.Dispatcher.Invoke(() =>
-      {
-        canvas.Children.Clear();
-        if (array.Length == 0)
-          return;
+      canvas.Children.Clear();
+      if (array.Length == 0)
+        return;
 
-        double columnWidth = canvas.ActualWidth / array.Length;
-        double maxValue = array.Max();
+      double columnWidth = canvas.ActualWidth / array.Length;
+      double maxValue = array.Max();
 
-        for (int i = 0; i < array.Length; i++) {
-          Rectangle rect = new Rectangle {
-            Width = Math.Max(1, columnWidth - 1), // Минимальная ширина 1
-            Height = (array[i] / maxValue) * canvas.ActualHeight,
-            Fill = Brushes.Blue,
-            Stroke = Brushes.Black,
-            StrokeThickness = 0.5
-          };
+      for (int i = 0; i < array.Length; i++) {
+        Rectangle rect = new Rectangle {
+          Width = Math.Max(1, columnWidth - 1),
+          Height = (array[i] / maxValue) * canvas.ActualHeight,
+          Fill = Brushes.Blue,
+          Stroke = Brushes.Black,
+          StrokeThickness = 0.5
+        };
 
-          Canvas.SetLeft(rect, i * columnWidth);
-          Canvas.SetBottom(rect, 0);
-          canvas.Children.Add(rect);
-        }
-      }, System.Windows.Threading.DispatcherPriority.Render);
+        Canvas.SetLeft(rect, i * columnWidth);
+        Canvas.SetBottom(rect, 0);
+        canvas.Children.Add(rect);
+      }
     }
 
     private async void StartSortingButton_Click(object sender, RoutedEventArgs e) {
       try {
         ResetAllDisplays();
 
-        int[] originalData = GetArrayFromDataGrid();
+        double[] originalData = GetArrayFromDataGrid();
         bool isAscending = AscendingRadio.IsChecked == true;
-        var tasks = new List<Task>();
+        var tasks = new List<Task<SortResult>>();
+
 
         if (BubbleSortCheckBox.IsChecked == true) {
           tasks.Add(ExecuteSortAsync(BubbleSort, "BubbleSort", isAscending));
@@ -434,34 +464,66 @@ namespace MultiWindowApp {
       InsertionSortTime.Text = "Вставками: - ";
       ShakerSortTime.Text = "Шейкерная: - ";
       BogoSortTime.Text = "BOGO: - ";
+
+      // Сбрасываем итерации
+      BubbleSortIterations.Text = "Пузырьковая: 0";
+      QuickSortIterations.Text = "Быстрая: 0";
+      InsertionSortIterations.Text = "Вставками: 0";
+      ShakerSortIterations.Text = "Шейкерная: 0";
+      BogoSortIterations.Text = "BOGO: 0";
     }
 
-    private void ImportFromExcelMenuItem_Click(object sender, RoutedEventArgs e) {
+    // Обновим метод генерации случайных данных
+    private void GenerateRandomDataMenuItem_Click(object sender, RoutedEventArgs e) {
       try {
-        var openFileDialog = new Microsoft.Win32.OpenFileDialog {
-          Filter = "Excel files (*.xlsx;*.xls)|*.xlsx;*.xls",
-          Title = "Выберите файл Excel"
-        };
+        // Диалог для выбора типа данных и диапазона
+        var dialog = new RandomDataDialog();
+        if (dialog.ShowDialog() == true) {
+          int size = int.Parse(ArraySizeTextBox.Text);
+          var random = new Random();
+          var data = new ObservableCollection<NumberItem>();
 
-        if (openFileDialog.ShowDialog() == true) {
-          ImportFromExcel(openFileDialog.FileName);
+          if (dialog.IsInteger) {
+            for (int i = 0; i < size; i++) {
+              data.Add(new NumberItem {
+                Index = i + 1,
+                Value = random.Next((int)dialog.MinValue, (int)dialog.MaxValue + 1)
+              });
+            }
+          } else {
+            for (int i = 0; i < size; i++) {
+              double value = dialog.MinValue + (random.NextDouble() * (dialog.MaxValue - dialog.MinValue));
+              data.Add(new NumberItem {
+                Index = i + 1,
+                Value = Math.Round(value, 2)
+              });
+            }
+          }
+
+          dataCollection = data;
+          InputDataGrid.ItemsSource = dataCollection;
         }
       }
       catch (Exception ex) {
-        MessageBox.Show($"Ошибка при импорте из Excel: {ex.Message}");
+        MessageBox.Show($"Ошибка при генерации данных: {ex.Message}");
       }
     }
 
+    // Обновим импорт для поддержки double и индексов
     private void ImportFromExcel(string filePath) {
       using (var package = new ExcelPackage(new FileInfo(filePath))) {
-        var worksheet = package.Workbook.Worksheets[0]; // Первый лист
+        var worksheet = package.Workbook.Worksheets[0];
         var data = new ObservableCollection<NumberItem>();
 
-        // Читаем данные из первого столбца
         int row = 1;
+        int index = 1;
         while (worksheet.Cells[row, 1].Value != null) {
-          if (int.TryParse(worksheet.Cells[row, 1].Value?.ToString(), out int value)) {
-            data.Add(new NumberItem { Value = value });
+          if (double.TryParse(worksheet.Cells[row, 1].Value?.ToString(),
+              NumberStyles.Float, CultureInfo.InvariantCulture, out double value)) {
+            data.Add(new NumberItem {
+              Index = index++,
+              Value = Math.Round(value, 2)
+            });
           }
           row++;
         }
@@ -474,6 +536,16 @@ namespace MultiWindowApp {
         } else {
           MessageBox.Show("Не удалось найти числовые данные в файле");
         }
+      }
+    }
+
+    // Остальные методы...
+    private void UpdateArraySizeButton_Click(object sender, RoutedEventArgs e) {
+      try {
+        InitializeDataGrid();
+      }
+      catch (Exception ex) {
+        MessageBox.Show($"Ошибка при обновлении размера: {ex.Message}");
       }
     }
 
@@ -491,6 +563,22 @@ namespace MultiWindowApp {
       }
       catch (Exception ex) {
         MessageBox.Show($"Ошибка при импорте из Google Sheets: {ex.Message}");
+      }
+    }
+
+    private void ImportFromExcelMenuItem_Click(object sender, RoutedEventArgs e) {
+      try {
+        var openFileDialog = new Microsoft.Win32.OpenFileDialog {
+          Filter = "Excel files (*.xlsx;*.xls)|*.xlsx;*.xls",
+          Title = "Выберите файл Excel"
+        };
+
+        if (openFileDialog.ShowDialog() == true) {
+          ImportFromExcel(openFileDialog.FileName);
+        }
+      }
+      catch (Exception ex) {
+        MessageBox.Show($"Ошибка при импорте из Excel: {ex.Message}");
       }
     }
 
@@ -532,24 +620,6 @@ namespace MultiWindowApp {
 
     private void ExitMenuItem_Click(object sender, RoutedEventArgs e) {
       this.Close();
-    }
-
-    private void GenerateRandomDataMenuItem_Click(object sender, RoutedEventArgs e) {
-      try {
-        int size = int.Parse(ArraySizeTextBox.Text);
-        var random = new Random();
-        var data = new ObservableCollection<NumberItem>();
-
-        for (int i = 0; i < size; i++) {
-          data.Add(new NumberItem { Value = random.Next(1, 1000) });
-        }
-
-        dataCollection = data;
-        InputDataGrid.ItemsSource = dataCollection;
-      }
-      catch (Exception ex) {
-        MessageBox.Show($"Ошибка при генерации данных: {ex.Message}");
-      }
     }
   }
 }
