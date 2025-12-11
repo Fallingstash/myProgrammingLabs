@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -51,6 +50,9 @@ namespace MultiWindowApp {
       StatusText.Foreground = Brushes.Orange;
       CalculationProgress.Visibility = Visibility.Visible;
       ProgressText.Text = "Запуск методов...";
+
+      // Очищаем историю разбиений
+      HistoryPanel.Children.Clear();
 
       try {
         await CalculateIntegralsAsync(_cancellationTokenSource.Token);
@@ -132,6 +134,9 @@ namespace MultiWindowApp {
             } else if (t.IsCompletedSuccessfully && t.Result != null) {
               _results.Add(t.Result);
               AddResultToPanel(t.Result);
+              if (autoN) {
+                AddHistoryToPanel(t.Result);
+              }
               CalculationProgress.Value++;
               ProgressText.Text = $"Выполнено {CalculationProgress.Value} из {selectedMethods.Count()} методов";
             }
@@ -168,53 +173,68 @@ namespace MultiWindowApp {
       int n = initialN;
       double result = 0;
       int iterations = 0;
-      List<int> historyN = new List<int>();
+      List<IterationHistory> history = new List<IterationHistory>();
       int finalN = n;
 
       if (autoN) {
         // АВТОМАТИЧЕСКИЙ ПОДБОР ОПТИМАЛЬНОГО n
-        double prevResult = 0;
         n = 4; // Начинаем с малого значения
 
         Log($"Метод {method}: начинаем автоматический подбор n с начального значения {n}");
 
+        List<double> resultsByN = new List<double>();
+
         do {
           cancellationToken.ThrowIfCancellationRequested();
 
-          prevResult = result;
           result = CalculateIntegral(method, f, a, b, n);
-          historyN.Add(n);
+          resultsByN.Add(result);
 
-          // Оцениваем изменение результата при удвоении n
-          double resultWithDoubleN = CalculateIntegral(method, f, a, b, n * 2);
-          double diff = Math.Abs(result - resultWithDoubleN);
+          // Записываем историю итерации
+          history.Add(new IterationHistory {
+            Iteration = iterations + 1,
+            N = n,
+            Result = result
+          });
 
-          Log($"Метод {method}: n = {n}, результат = {result:F8}, разница с n*2 = {diff:E2}");
+          // Проверяем, достаточно ли итераций для сравнения
+          if (resultsByN.Count >= 2) {
+            double prevResult = resultsByN[resultsByN.Count - 2];
+            double diff = Math.Abs(result - prevResult);
 
-          // Увеличиваем n для следующей итерации
+            Log($"Метод {method}: итерация {iterations + 1}, n = {n}, результат = {result:F8}, изменение = {diff:E2}");
+
+            // Критерий остановки: изменение результата меньше epsilon
+            if (diff < epsilon) {
+              Log($"Метод {method}: достигнута точность {diff:E2} < {epsilon}, останавливаемся");
+              break;
+            }
+          }
+
+          // Увеличиваем n для следующей итерации (удваиваем)
           n *= 2;
           iterations++;
 
-          // Критерий остановки: изменение результата меньше epsilon
-          // ИЛИ достигли максимального количества итераций
-          if (diff < epsilon || iterations >= 15 || n >= 1000000) {
-            Log($"Метод {method}: достигнута точность {diff:E2} < {epsilon}, останавливаемся");
+          // Защита от бесконечного цикла
+          if (iterations >= 20 || n >= 1000000) {
+            Log($"Метод {method}: достигнут предел итераций ({iterations}) или n ({n})");
             break;
           }
 
         } while (true);
 
-        finalN = n / 2; // Возвращаем n, при котором была достигнута точность
-
-        // Вычисляем финальный результат с оптимальным n
-        result = CalculateIntegral(method, f, a, b, finalN);
-        Log($"Метод {method}: финальный результат с n = {finalN}: {result:F8}");
+        finalN = n;
+        Log($"Метод {method}: финальный результат с n = {finalN}: {result:F8}, итераций: {iterations + 1}");
 
       } else {
         // ФИКСИРОВАННОЕ КОЛИЧЕСТВО РАЗБИЕНИЙ
         Log($"Метод {method}: используем фиксированное n = {n}");
         result = CalculateIntegral(method, f, a, b, n);
-        historyN.Add(n);
+        history.Add(new IterationHistory {
+          Iteration = 1,
+          N = n,
+          Result = result
+        });
         iterations = 1;
         finalN = n;
         Log($"Метод {method}: результат = {result:F8}");
@@ -225,7 +245,8 @@ namespace MultiWindowApp {
         Result = result,
         Iterations = iterations,
         FinalN = finalN,
-        HistoryN = historyN  // История изменения n (для отладки)
+        History = history,
+        Error = null
       };
     }
 
@@ -459,18 +480,21 @@ namespace MultiWindowApp {
         var border = new Border {
           BorderBrush = Brushes.LightGray,
           BorderThickness = new Thickness(1),
-          Margin = new Thickness(0, 0, 0, 5),
-          Padding = new Thickness(5),
-          Background = result.Error == null ? Brushes.White : Brushes.LightPink
+          Margin = new Thickness(0, 0, 0, 3),
+          Padding = new Thickness(4),
+          Background = result.Error == null ? Brushes.White : Brushes.LightPink,
+          CornerRadius = new CornerRadius(3)
         };
 
         var stackPanel = new StackPanel();
 
-        // Название метода
+        // Название метода (компактнее)
         var methodText = new TextBlock {
           Text = GetMethodDisplayName(result.MethodName),
           FontWeight = FontWeights.Bold,
-          Foreground = result.Error == null ? Brushes.Black : Brushes.Red
+          Foreground = result.Error == null ? Brushes.Black : Brushes.Red,
+          FontSize = 11,
+          Margin = new Thickness(0, 0, 0, 2)
         };
         stackPanel.Children.Add(methodText);
 
@@ -478,39 +502,36 @@ namespace MultiWindowApp {
           var errorText = new TextBlock {
             Text = $"Ошибка: {result.Error}",
             Foreground = Brushes.Red,
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 10
           };
           stackPanel.Children.Add(errorText);
         } else {
-          // Результат интеграла
+          // Результат интеграла (одна строка)
           var resultText = new TextBlock {
-            Text = $"∫f(x)dx ≈ {result.Result:F8}",
-            Margin = new Thickness(0, 2, 0, 0),
-            FontFamily = new FontFamily("Consolas")
+            Text = $"∫f(x)dx ≈ {result.Result:F6}",
+            Margin = new Thickness(0, 1, 0, 0),
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 10
           };
           stackPanel.Children.Add(resultText);
 
-          // Время выполнения
-          var timeText = new TextBlock {
-            Text = $"Время: {result.Time.TotalMilliseconds:F2} мс",
-            Margin = new Thickness(0, 2, 0, 0)
+          // Время и разбиения в одной строке
+          var detailsText = new TextBlock {
+            Text = $"Время: {result.Time.TotalMilliseconds:F0} мс | n: {result.FinalN}",
+            Margin = new Thickness(0, 1, 0, 0),
+            FontSize = 9,
+            Foreground = Brushes.DarkGray
           };
-          stackPanel.Children.Add(timeText);
+          stackPanel.Children.Add(detailsText);
 
-          // Количество разбиений
-          var nText = new TextBlock {
-            Text = $"Разбиений: {result.FinalN}",
-            Margin = new Thickness(0, 2, 0, 0)
-          };
-          stackPanel.Children.Add(nText);
-
-          // Количество итераций (только для автоматического режима)
+          // Итерации (только если были)
           if (result.Iterations > 1) {
             var iterText = new TextBlock {
-              Text = $"Итераций подбора: {result.Iterations}",
-              Margin = new Thickness(0, 2, 0, 0),
-              FontSize = 10,
-              Foreground = Brushes.DarkGray
+              Text = $"Итераций: {result.Iterations}",
+              Margin = new Thickness(0, 1, 0, 0),
+              FontSize = 9,
+              Foreground = Brushes.DarkSlateGray
             };
             stackPanel.Children.Add(iterText);
           }
@@ -519,20 +540,72 @@ namespace MultiWindowApp {
         border.Child = stackPanel;
         ResultsPanel.Children.Add(border);
 
-        Log($"Метод {GetMethodDisplayName(result.MethodName)} завершен: " +
-            $"{(result.Error != null ? $"Ошибка: {result.Error}" : $"Результат = {result.Result:F8}, n = {result.FinalN}, время = {result.Time.TotalMilliseconds:F2} мс")}");
+        Log($"Метод {GetMethodDisplayName(result.MethodName)}: " +
+            $"{(result.Error != null ? $"Ошибка: {result.Error}" : $"результат = {result.Result:F6}, n = {result.FinalN}")}");
       });
     }
 
-    private string GetMethodDisplayName(string method) {
-      return method switch {
-        "RectLeft" => "Прямоугольники (левый)",
-        "RectMiddle" => "Прямоугольники (средний)",
-        "RectRight" => "Прямоугольники (правый)",
-        "Trapezoidal" => "Метод трапеций",
-        "Simpson" => "Метод Симпсона",
-        _ => method
-      };
+    private void AddHistoryToPanel(CalculationResult result) {
+      if (result.History == null || result.History.Count == 0)
+        return;
+
+      Dispatcher.Invoke(() => {
+        var border = new Border {
+          BorderBrush = Brushes.LightGray,
+          BorderThickness = new Thickness(1),
+          Margin = new Thickness(0, 0, 0, 3),
+          Padding = new Thickness(4),
+          Background = Brushes.White,
+          CornerRadius = new CornerRadius(3)
+        };
+
+        var stackPanel = new StackPanel();
+
+        // Заголовок метода (компактный)
+        var methodText = new TextBlock {
+          Text = $"{GetMethodDisplayName(result.MethodName)}:",
+          FontWeight = FontWeights.SemiBold,
+          Margin = new Thickness(0, 0, 0, 2),
+          FontSize = 11
+        };
+        stackPanel.Children.Add(methodText);
+
+        // История итераций (компактно)
+        foreach (var iteration in result.History.Take(5)) { // Показываем только первые 5 итераций
+          var iterationText = new TextBlock {
+            Text = $"Шаг {iteration.Iteration}: n={iteration.N}, ∫≈{iteration.Result:F6}",
+            FontSize = 9,
+            Margin = new Thickness(2, 1, 0, 1),
+            TextWrapping = TextWrapping.Wrap
+          };
+          stackPanel.Children.Add(iterationText);
+        }
+
+        // Если итераций больше 5, показываем только итог
+        if (result.History.Count > 5) {
+          var summaryText = new TextBlock {
+            Text = $"... и ещё {result.History.Count - 5} итераций",
+            FontSize = 8,
+            Margin = new Thickness(2, 1, 0, 1),
+            FontStyle = FontStyles.Italic,
+            Foreground = Brushes.Gray
+          };
+          stackPanel.Children.Add(summaryText);
+        }
+
+        // Итог
+        var finalText = new TextBlock {
+          Text = $"Итог: ∫≈{result.Result:F6} (n={result.FinalN}, {result.Iterations} итераций)",
+          FontWeight = FontWeights.SemiBold,
+          Margin = new Thickness(0, 3, 0, 0),
+          FontSize = 10,
+          Foreground = Brushes.DarkBlue
+        };
+        stackPanel.Children.Add(finalText);
+
+        border.Child = stackPanel;
+        HistoryPanel.Children.Add(border);
+      });
     }
 
     private async Task BuildPlotAsync(string function, double a, double b, CancellationToken cancellationToken) {
@@ -652,6 +725,13 @@ namespace MultiWindowApp {
       var brush = new SolidColorBrush(methodColor);
       brush.Opacity = 0.3;
 
+      // Для метода Симпсона - особая отрисовка
+      if (method == "Simpson") {
+        DrawSimpsonPartition(function, padding, plotWidth, plotHeight, a, b, minY, maxY, result.FinalN, brush);
+        return;
+      }
+
+      // Обычная отрисовка для других методов
       for (int i = 0; i < result.FinalN; i++) {
         double x1 = a + i * h;
         double x2 = x1 + h;
@@ -696,21 +776,86 @@ namespace MultiWindowApp {
                 DrawTrapezoid(x1Pos, y1Pos, x2Pos, y2Pos, padding + plotHeight, brush);
               }
               break;
-
-            case "Simpson":
-              if (i % 2 == 0 && i + 2 <= result.FinalN) {
-                double x0 = x1;
-                double x1s = x1 + h;
-                double x2s = x1 + 2 * h;
-                DrawParabolaSegment(function, x0, x1s, x2s, padding, plotWidth, plotHeight,
-                    a, b, minY, maxY, brush);
-              }
-              break;
           }
         }
         catch {
           // Пропускаем сегменты с ошибками
         }
+      }
+    }
+
+    private void DrawSimpsonPartition(string function, double padding, double plotWidth,
+        double plotHeight, double a, double b, double minY, double maxY, int n, Brush brush) {
+      double h = (b - a) / n;
+
+      // Метод Симпсона работает с парами отрезков (сегментами по 2 отрезка)
+      for (int i = 0; i < n; i += 2) {
+        if (i + 2 > n)
+          break; // Если остался нечетный отрезок, пропускаем
+
+        double x0 = a + i * h;
+        double x1 = x0 + h;
+        double x2 = x0 + 2 * h;
+
+        try {
+          // Вычисляем три точки для параболы
+          double y0 = CalculateFunction(x0, function);
+          double y1 = CalculateFunction(x1, function);
+          double y2 = CalculateFunction(x2, function);
+
+          if (!double.IsInfinity(y0) && !double.IsNaN(y0) &&
+              !double.IsInfinity(y1) && !double.IsNaN(y1) &&
+              !double.IsInfinity(y2) && !double.IsNaN(y2)) {
+
+            // Рисуем параболическую область
+            DrawParabolaArea(function, x0, x1, x2, padding, plotWidth, plotHeight,
+                            a, b, minY, maxY, brush);
+          }
+        }
+        catch {
+          // Пропускаем сегмент с ошибками
+        }
+      }
+    }
+
+    private void DrawParabolaArea(string function, double x0, double x1, double x2,
+        double padding, double plotWidth, double plotHeight, double a, double b,
+        double minY, double maxY, Brush brush) {
+      var polygon = new Polygon {
+        Fill = brush,
+        Stroke = Brushes.Transparent
+      };
+
+      // Добавляем точки параболы (более плотно для плавной кривой)
+      int parabolaPoints = 30;
+      for (int j = 0; j <= parabolaPoints; j++) {
+        double t = j / (double)parabolaPoints;
+        double x = x0 + (x2 - x0) * t;
+
+        try {
+          double y = CalculateFunction(x, function);
+          if (!double.IsInfinity(y) && !double.IsNaN(y)) {
+            double xPos = padding + (x - a) / (b - a) * plotWidth;
+            double yPos = padding + plotHeight - (y - minY) / (maxY - minY) * plotHeight;
+            polygon.Points.Add(new Point(xPos, yPos));
+          }
+        }
+        catch {
+          // Пропускаем точки с ошибками
+        }
+      }
+
+      // Добавляем точки на оси X для замкнутой фигуры
+      double x2Pos = padding + (x2 - a) / (b - a) * plotWidth;
+      double x0Pos = padding + (x0 - a) / (b - a) * plotWidth;
+      double bottomY = padding + plotHeight;
+
+      // Добавляем точки снизу в обратном порядке
+      polygon.Points.Add(new Point(x2Pos, bottomY));
+      polygon.Points.Add(new Point(x0Pos, bottomY));
+
+      if (polygon.Points.Count >= 3) {
+        PlotCanvas.Children.Add(polygon);
       }
     }
 
@@ -815,44 +960,6 @@ namespace MultiWindowApp {
       PlotCanvas.Children.Add(polygon);
     }
 
-    private void DrawParabolaSegment(string function, double x0, double x1, double x2,
-        double padding, double plotWidth, double plotHeight, double a, double b,
-        double minY, double maxY, Brush brush) {
-      var polygon = new Polygon {
-        Fill = brush,
-        Stroke = Brushes.Transparent
-      };
-
-      // Добавляем точки параболы
-      for (int j = 0; j <= 20; j++) {
-        double t = j / 20.0;
-        double x = x0 + (x2 - x0) * t;
-
-        try {
-          double y = CalculateFunction(x, function);
-          if (!double.IsInfinity(y) && !double.IsNaN(y)) {
-            double xPos = padding + (x - a) / (b - a) * plotWidth;
-            double yPos = padding + plotHeight - (y - minY) / (maxY - minY) * plotHeight;
-            polygon.Points.Add(new Point(xPos, yPos));
-          }
-        }
-        catch {
-          // Пропускаем точки с ошибками
-        }
-      }
-
-      // Добавляем точки на оси X для замкнутой фигуры
-      double x2Pos = padding + (x2 - a) / (b - a) * plotWidth;
-      double x0Pos = padding + (x0 - a) / (b - a) * plotWidth;
-      double bottomY = padding + plotHeight;
-      polygon.Points.Add(new Point(x2Pos, bottomY));
-      polygon.Points.Add(new Point(x0Pos, bottomY));
-
-      if (polygon.Points.Count >= 3) {
-        PlotCanvas.Children.Add(polygon);
-      }
-    }
-
     private void Log(string message) {
       Dispatcher.Invoke(() => {
         LogTextBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
@@ -887,6 +994,7 @@ namespace MultiWindowApp {
       ResultsPanel.Children.Clear();
       PlotCanvas.Children.Clear();
       LogTextBox.Clear();
+      HistoryPanel.Children.Clear();
       NoPlotText.Visibility = Visibility.Visible;
 
       StatusText.Text = "Готов к работе";
@@ -963,6 +1071,23 @@ namespace MultiWindowApp {
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e) {
       _cancellationTokenSource.Cancel();
     }
+
+    private string GetMethodDisplayName(string method) {
+      return method switch {
+        "RectLeft" => "Прямоугольники (левый)",
+        "RectMiddle" => "Прямоугольники (средний)",
+        "RectRight" => "Прямоугольники (правый)",
+        "Trapezoidal" => "Метод трапеций",
+        "Simpson" => "Метод Симпсона",
+        _ => method
+      };
+    }
+  }
+
+  internal class IterationHistory {
+    public int Iteration { get; set; }
+    public int N { get; set; }
+    public double Result { get; set; }
   }
 
   internal class CalculationResult {
@@ -971,7 +1096,7 @@ namespace MultiWindowApp {
     public TimeSpan Time { get; set; }
     public int Iterations { get; set; }
     public int FinalN { get; set; }
+    public List<IterationHistory> History { get; set; } = new List<IterationHistory>();
     public string Error { get; set; }
-    public List<int> HistoryN { get; set; } = new List<int>();
   }
 }

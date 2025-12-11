@@ -35,7 +35,7 @@ namespace MultiWindowApp {
           new SortingAlgorithms().Show();
           break;
         case "6":
-          MessageBox.Show("Задание 6 в разработке");
+          new IntegralCalculator().Show();
           break;
         case "7":
           MessageBox.Show("Задание 7 в разработке");
