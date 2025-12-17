@@ -38,7 +38,7 @@ namespace MultiWindowApp {
           new IntegralCalculator().Show();
           break;
         case "7":
-          MessageBox.Show("Задание 7 в разработке");
+          new CoordinateDescentMethod().Show();
           break;
         case "8":
           MessageBox.Show("Задание 8 в разработке");

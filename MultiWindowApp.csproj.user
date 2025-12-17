@@ -5,6 +5,9 @@
     <Compile Update="BogoSettingsDialog.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="CoordinateDescentMethod.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Update="GoldSectionMethod.xaml.cs">
       <SubType>Code</SubType>
     </Compile>

@@ -218,33 +218,37 @@ namespace MultiWindowApp {
 
     private List<double> FindAllRoots(double a, double b, double epsilon, string functionText) {
       var roots = new List<double>();
-      int divisions = 50; // Еще меньше делений
+
+      // Увеличиваем количество делений для более точного поиска
+      int divisions = Math.Min(1000, Math.Max(200, (int)((b - a) * 10)));
       double step = (b - a) / divisions;
 
-      // Сначала проверяем особо важные точки
+      // Проверяем больше особых точек
       var specialPoints = new List<double> { a, b, (a + b) / 2 };
 
+      // Добавляем 0 если он в интервале
       if (0 >= a && 0 <= b) {
         specialPoints.Add(0);
       }
 
+      // Проверяем все специальные точки
       foreach (double x in specialPoints) {
         if (x >= a && x <= b) {
           try {
             double fx = CalculateFunction(x, functionText);
-            if (Math.Abs(fx) == 0) {
+            if (Math.Abs(fx) < epsilon * 10) // Используем epsilon для проверки
+            {
               if (!IsRootAlreadyFound(roots, x, epsilon * 100))
                 roots.Add(x);
             }
           }
           catch {
-            // Пропускаем точки, где функция не определена
             continue;
           }
         }
       }
 
-      // Ищем смены знака
+      // Ищем смены знака с адаптивным шагом
       for (int i = 0; i < divisions; i++) {
         double x1 = a + i * step;
         double x2 = x1 + step;
@@ -252,43 +256,47 @@ namespace MultiWindowApp {
         double f1 = 0, f2 = 0;
         bool f1Valid = false, f2Valid = false;
 
-        // Пробуем вычислить f(x1)
         try {
           f1 = CalculateFunction(x1, functionText);
           f1Valid = true;
         }
-        catch {
-          f1Valid = false;
-        }
+        catch { f1Valid = false; }
 
-        // Пробуем вычислить f(x2)
         try {
           f2 = CalculateFunction(x2, functionText);
           f2Valid = true;
         }
-        catch {
-          f2Valid = false;
-        }
+        catch { f2Valid = false; }
 
-        if (f1Valid && f2Valid && Math.Abs(f1) < 1e10 && Math.Abs(f2) < 1e10 && f1 * f2 < 0) {
-          try {
-            double root = DichotomyMethodFunc(x1, x2, epsilon, functionText);
-
-            // Проверяем, что найденное значение действительно близко к нулю
-            double fRoot = CalculateFunction(root, functionText);
-            if (Math.Abs(fRoot) < Math.Max(epsilon, 1e-6)) {
-              if (!IsRootAlreadyFound(roots, root, epsilon * 10))
-                roots.Add(root);
-            }
+        // Ищем смену знака или близкие к нулю значения
+        if (f1Valid && f2Valid) {
+          // Если нашли точку, где функция близка к нулю
+          if (Math.Abs(f1) < epsilon * 10 && !IsRootAlreadyFound(roots, x1, epsilon * 100)) {
+            roots.Add(x1);
           }
-          catch {
-            // Пропускаем интервалы, где метод дихотомии не срабатывает
+
+          // Проверяем смену знака
+          if (f1 * f2 < 0 || Math.Abs(f1 * f2) < epsilon * 100) {
+            try {
+              double root = DichotomyMethodFunc(x1, x2, epsilon, functionText);
+
+              // Проверяем, что найденное значение действительно близко к нулю
+              double fRoot = CalculateFunction(root, functionText);
+              if (Math.Abs(fRoot) < Math.Max(epsilon, 1e-6)) {
+                if (!IsRootAlreadyFound(roots, root, epsilon * 10))
+                  roots.Add(root);
+              }
+            }
+            catch {
+              // Пропускаем проблемные интервалы
+            }
           }
         }
       }
 
       return roots.OrderBy(x => x).ToList();
     }
+
 
     private bool IsRootAlreadyFound(List<double> roots, double candidate, double tolerance) {
       foreach (var root in roots) {
