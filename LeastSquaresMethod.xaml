@@ -1,0 +1,242 @@
+﻿<Window x:Class="MultiWindowApp.LeastSquaresMethod"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Метод наименьших квадратов" Height="750" Width="1100"
+        WindowStartupLocation="CenterScreen"
+        Background="White">
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <TextBlock Grid.Row="0" Text="Задание 8: Метод наименьших квадратов" 
+                   FontSize="22" FontWeight="Bold" Margin="0,0,0,15" 
+                   HorizontalAlignment="Center" Foreground="#FF0078D7"/>
+
+        <!-- Панель управления -->
+        <Border Grid.Row="1" Padding="15" Background="#FFF0F8FF" 
+                CornerRadius="8" BorderBrush="#FF0078D7" BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Кнопки управления -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="LoadExcelButton" Content="📊 Из Excel" 
+                            Width="100" Height="30" Margin="0,0,10,0"
+                            Background="#FF0078D7" Foreground="White"
+                            BorderThickness="0" Cursor="Hand"
+                            ToolTip="Загрузить данные из CSV/Excel"/>
+
+                    <Button x:Name="ExportButton" Content="💾 Экспорт" 
+                            Width="100" Height="30" Margin="0,0,10,0"
+                            Background="#FF0078D7" Foreground="White"
+                            BorderThickness="0" Cursor="Hand"
+                            Click="ExportToCsvButton_Click"
+                            ToolTip="Экспорт данных в CSV"/>
+
+                    <Button x:Name="GenerateDataButton" Content="🔄 Сгенерировать" 
+                            Width="120" Height="30" Margin="0,0,10,0"
+                            Background="#FF0078D7" Foreground="White"
+                            BorderThickness="0" Cursor="Hand"
+                            ToolTip="Сгенерировать случайные данные"/>
+
+                    <Button x:Name="ClearButton" Content="🗑️ Очистить" 
+                            Width="100" Height="30" Margin="0,0,10,0"
+                            Background="#FF0078D7" Foreground="White"
+                            BorderThickness="0" Cursor="Hand"
+                            ToolTip="Очистить все данные"/>
+                </StackPanel>
+
+                <!-- Настройки генерации -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
+                    <TextBlock Text="Настройки генерации:" 
+                              FontWeight="SemiBold" Margin="0,0,10,0"
+                              VerticalAlignment="Center"/>
+
+                    <TextBlock Text="Точек:" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="PointsCountTextBox" Width="50" Height="25" 
+                            Text="10" VerticalContentAlignment="Center"/>
+
+                    <TextBlock Text="X:" Margin="10,0,5,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="MinXTextBox" Width="50" Height="25" 
+                            Text="0" VerticalContentAlignment="Center"/>
+                    <TextBlock Text="до" Margin="5,0,5,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="MaxXTextBox" Width="50" Height="25" 
+                            Text="10" VerticalContentAlignment="Center"/>
+
+                    <TextBlock Text="Y базовое:" Margin="10,0,5,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="MinYBaseTextBox" Width="50" Height="25" 
+                            Text="0" VerticalContentAlignment="Center"/>
+                    <TextBlock Text="до" Margin="5,0,5,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="MaxYBaseTextBox" Width="50" Height="25" 
+                            Text="10" VerticalContentAlignment="Center"/>
+
+                    <TextBlock Text="Шум:" Margin="10,0,5,0" VerticalAlignment="Center"/>
+                    <TextBox x:Name="NoiseLevelTextBox" Width="50" Height="25" 
+                            Text="1.0" VerticalContentAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Кнопка расчета -->
+                <Grid Grid.RowSpan="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="1" x:Name="CalculateButton" Content="📈 Рассчитать" 
+                            Width="120" Height="35" FontSize="14" FontWeight="SemiBold"
+                            Background="#FF28A745" Foreground="White"
+                            BorderThickness="0" Cursor="Hand"
+                            ToolTip="Выполнить расчет МНК"/>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Основное содержимое -->
+        <Grid Grid.Row="2" Margin="0,15,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.5*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Левая панель: Таблица данных -->
+            <Border Grid.Column="0" Margin="0,0,10,0" Padding="10" 
+                    Background="White" BorderBrush="#FFD3D3D3" 
+                    BorderThickness="1" CornerRadius="5">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Входные данные (X, Y):" 
+                              FontSize="14" FontWeight="SemiBold" 
+                              Margin="0,0,0,10" Foreground="#FF0078D7"/>
+
+                    <DataGrid Grid.Row="1" x:Name="DataGridPoints" 
+                              AutoGenerateColumns="False" 
+                              CanUserAddRows="True"
+                              CanUserDeleteRows="True"
+                              ItemsSource="{Binding}"
+                              HeadersVisibility="Column"
+                              BorderBrush="#FFD3D3D3">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="№" Width="Auto" 
+                                               Binding="{Binding Index}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="X" Width="*" 
+                                               Binding="{Binding X, StringFormat=N3}"/>
+                            <DataGridTextColumn Header="Y" Width="*" 
+                                               Binding="{Binding Y, StringFormat=N3}"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <!-- Правая панель: Результаты и управление -->
+            <Border Grid.Column="1" Padding="15" 
+                    Background="#FFF8F9FA" BorderBrush="#FFD3D3D3" 
+                    BorderThickness="1" CornerRadius="5">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Результаты -->
+                    <TextBlock Grid.Row="0" Text="Результаты:" 
+                              FontSize="16" FontWeight="Bold" 
+                              Margin="0,0,0,15" Foreground="#FF0078D7"/>
+
+                    <!-- Линейная аппроксимация -->
+                    <Border Grid.Row="1" Padding="10" Margin="0,0,0,10"
+                            Background="White" BorderBrush="#FF0078D7" 
+                            BorderThickness="1" CornerRadius="5">
+                        <StackPanel>
+                            <TextBlock Text="Линейная (n=1): y = a₀ + a₁x" 
+                                      FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <TextBlock x:Name="LinearResultText" Text="Не рассчитано"
+                                      Foreground="Gray" FontSize="12"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                <TextBlock Text="R² = " FontSize="12"/>
+                                <TextBlock x:Name="LinearRSquaredText" Text="-" 
+                                          FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Квадратичная аппроксимация -->
+                    <Border Grid.Row="2" Padding="10" Margin="0,0,0,10"
+                            Background="White" BorderBrush="#FF28A745" 
+                            BorderThickness="1" CornerRadius="5">
+                        <StackPanel>
+                            <TextBlock Text="Квадратичная (n=2): y = a₀ + a₁x + a₂x²" 
+                                      FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <TextBlock x:Name="QuadraticResultText" Text="Не рассчитано"
+                                      Foreground="Gray" FontSize="12"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                <TextBlock Text="R² = " FontSize="12"/>
+                                <TextBlock x:Name="QuadraticRSquaredText" Text="-" 
+                                          FontSize="12" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Управление отображением графика -->
+                    <StackPanel Grid.Row="3" Margin="0,10,0,15">
+                        <TextBlock Text="Отобразить на графике:" 
+                                  FontWeight="SemiBold" Margin="0,0,0,5"/>
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox x:Name="ShowPointsCheckBox" Content="Точки" 
+                                     IsChecked="True" Margin="0,0,15,0"/>
+                            <CheckBox x:Name="ShowLinearCheckBox" Content="Линейная" 
+                                     IsChecked="True" Margin="0,0,15,0"/>
+                            <CheckBox x:Name="ShowQuadraticCheckBox" Content="Квадратичная" 
+                                     IsChecked="True"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Область для графика -->
+                    <Border Grid.Row="4" Background="White" 
+                            BorderBrush="#FFD3D3D3" BorderThickness="1" 
+                            CornerRadius="5">
+                        <Grid x:Name="ChartContainer">
+                            <!-- OxyPlot будет добавлен программно -->
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Нижняя панель -->
+        <Border Grid.Row="3" Margin="0,15,0,0" Padding="10" 
+                Background="#FFF0F8FF" CornerRadius="5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                          Text="Метод наименьших квадратов для линейной и квадратичной аппроксимации"
+                          FontSize="12" Foreground="Gray"/>
+
+                <Button Grid.Column="1" x:Name="BackButton" Content="← Назад" 
+                        Width="80" Height="30" HorizontalAlignment="Right"
+                        Background="#FF6C757D" Foreground="White"
+                        BorderThickness="0" Cursor="Hand"
+                        Click="BackButton_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -41,7 +41,7 @@ namespace MultiWindowApp {
           new CoordinateDescentMethod().Show();
           break;
         case "8":
-          MessageBox.Show("Задание 8 в разработке");
+          new LeastSquaresMethod().Show();
           break;
         case "9":
           MessageBox.Show("Задание 9 в разработке");
